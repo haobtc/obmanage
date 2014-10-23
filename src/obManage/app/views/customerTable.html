@@ -1,0 +1,50 @@
+<table border="1" class="table table-striped">
+  <tr>
+    <td>email</td><td>serverKey</td><td>authKey</td>
+  </tr>
+
+  {{range .customers}}
+  <tr>
+    <td>{{ .Email }}</td>
+    <td>{{ .ServerKey }}</td>
+    
+    <td><a href="#" id="passwd" data-url="/editAuth/{{.Email}}" data-type="text" data-pk="1" data-name="authkey" data-placement="left" data-placeholder="Required" data-original-title="Enter new auth, empty to delete" class="editable">{{.AuthKey}}</a></td>
+    
+  </tr>
+  {{end}}
+</table>
+
+<ul class="pager">
+  <li><a href="/customers/prev/10/{{.Page}}">Previous</a></li>
+  <li><label class="default" id="pagenum"> {{ .Page }} </label></li>
+  <li><a href="/customers/next/10/{{.Page}}" >Next</a></li>
+</ul>
+
+<script>
+  $("[data-name=authkey]").editable({
+  type: 'text',
+  title: 'delete'
+  
+  });
+  function prev() {
+  var curpage = $("#pagenum").text()
+  if (curpage <= 1)
+                 {
+                 return ;
+                 }
+                 $.post("/customers/10", {from: (parseInt(curpage)-1)}, function(data){
+                 
+                 });
+                 
+                 }
+                 
+                 function next() { <!-- -->
+                 var curpage = $("#pagenum").text()
+                 $.post("/customers/10", {from: (curpage)}, function(data){
+                 
+                 })
+                 
+                 }
+                 </script>
+
+

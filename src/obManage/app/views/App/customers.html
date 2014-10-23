@@ -1,0 +1,22 @@
+
+{{set . "title" "Home"}}
+{{template "header.html" .}}
+{{template "nav.html" .}}
+
+
+<h1>total has {{ .customerCount }} customers</h1>
+
+
+{{if eq .customerCount  0}}
+
+{{else}}
+
+{{template "customerTable.html" .}}
+
+{{end}}
+
+
+
+{{template "footer.html" .}}
+
+
