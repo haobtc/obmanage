@@ -1,0 +1,11 @@
+
+
+{{set . "title" "obManage"}}
+{{template "header.html" .}}
+{{template "nav.html" .}}
+<h1>Hello {{.email}}</h1>
+{{range .admins}}
+<tr>{{$.email}}</tr>
+{{end}}
+{{template "footer.html" .}}
+

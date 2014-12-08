@@ -1,0 +1,51 @@
+{{set . "title" "obManage"}}
+{{template "header.html" .}}
+
+<header class="hero-unit" style="background-color:#A9F16C">
+  <div class="container">
+    <div class="row">
+	  <div class="form-group">
+		<div class="col-sm-offset-4 col-sm-4 col-md-offset-4 col-md-4 col-xs-2 col-lg-4  col-lg-offset-4 ">
+		  <label> 账户: </label>	
+		  <input class="form-control" id="email" type="text" placeholder="账户名"/>
+		  <label> 密码: </label>
+		  <input type="password" class="form-control" id="pwd" type="text" value="" placeholder="密码"/>
+
+		  <button id="loginbtn" class="btn-default form-control"> 登陆 </button>
+          <div class="alert alert-danger hidden" id="loginalert"> email or password error! </div>
+		</div>
+
+
+
+	  </div>
+    </div>
+
+  </div>
+</header>
+
+<div class="container">
+  <div class="row">
+    <div class="span6">
+      {{template "flash.html" .}}
+    </div>
+  </div>
+</div>
+
+<script>
+  $("#loginbtn").click(
+  function() {
+  var email= $("#email").val();
+  var pwd = $("#pwd").val();
+  $.post("/login", {email: email, pwd: pwd}, function(e) {
+  $("#loginBtn").html("{{msg . "login"}}").removeClass("disabled");
+  if(e.Success) {
+  $("#loginalert").addClass("hidden");
+  location.href = '/users?email='+email;
+  } else {
+  $("#loginalert").removeClass("hidden");
+  }
+  });
+  }
+  );
+</script>
+{{template "footer.html" .}}

@@ -1,0 +1,111 @@
+{{set . "title" "obManage"}}
+{{template "header.html" .}}
+{{template "nav.html" .}}
+
+<p> request cancel auth {{.Count}}</p>
+
+<div id="edit-alert" class="alert alert-warning alert-dismissible hidden" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+    <span aria-hidden="true">&times;</span>
+    <span class="sr-only">Close</span>
+  </button>
+</div>
+
+
+<table border="1" class="table table-striped">
+  <tr><td>email</td> <td>time</td><td>email checked</td><td>frozen account</td><td>timeout</td><td>handled already</td><td>email sent</td></tr>
+  
+  {{range $.CancelCus}}
+  <tr>
+    <td>{{.Email}}</td>
+    <td>{{.ReqTime}}</td>
+    <td><a href="#" data-edit="requestCancelAuth" data-url="/validateUser/{{.Email}}/"  data-name="validate-email" >{{.EmailChecked}}</a></td>
+    
+    <td><a href="#" data-edit="requestCancelAuth" data-url="/frozenAccount/{{.Email}}/" data-name="frozen-account">{{.FrozenAccount}}</a></td>
+    
+    {{ if eq .Timeout  true }}  
+    <td><a href="#" data-edit="requestCancelAuth" data-url="/authTimeout/{{.Email}}/" data-name="cancel-auth-timeout"><font color="ff0000"> {{.Timeout}}</font></a></td>
+    {{ else }}
+    <td><a href="#" data-edit="requestCancelAuth" data-url="/authTimeout/{{.Email}}/" data-name="cancel-auth-timeout"> {{.Timeout}}</a></td>
+    {{end}}  
+    
+    {{ if eq .Handled true}}
+    <td><a href="#" data-edit="requestCancelAuth" data-url="/authHandled/{{.Email}}/" data-name="handled-auth"> {{.Handled}}</a></td>
+    {{else}}
+    <td><a href="#" data-edit="requestCancelAuth" data-url="/authHandled/{{.Email}}/" data-name="handled-auth"><font color="ff0000"> {{.Handled}}</font></a></td>
+    {{end}}
+    <td><a href="#" data-edit="requestCancelAuth" data-url="/sentEmail/{{.Email}}/"  data-name="sent-handle-email"> {{.SentEmail}}</a></td>
+    
+  </tr>
+  {{end}}
+</table>
+
+<input  id="addCancel" placeholder="email"></input>
+<a href="javascript:addCancel()">add </a>
+
+
+<script>
+  var editableElems = ["validate-email","frozen-account","handled-auth", "cancel-auth-timeout","sent-handle-email"]
+
+  
+  function addCancel() {
+  location.href = "/addCancel/" + $("#addCancel").val()
+  }
+  
+  
+  $("[data-edit=requestCancelAuth]").each(
+  function(i,v){
+  $(this).click(function(){
+  var orig = $.trim($(v).text())
+  var newtxt = "";
+  if(orig === "false") {
+  newtxt="true";
+  } else {
+  newtxt="false"
+  }
+  $(v).text(newtxt);
+  var url = $(v).attr("data-url") + newtxt
+  $.get(url,{}, function(data){
+  if( data.Msg != "ok" ){
+  $("#edit-alert").text(data.Msg)
+  $("#edit-alert").removeClass("alert-success")
+  $("#edit-alert").attr("class","alert-warning")
+  $("#edit-alert").removeClass("hidden")
+  } else {
+  $("#edit-alert").text("modify success")
+  $("#edit-alert").removeClass("alert-warning")
+    $("#edit-alert").attr("class","alert-success")
+    $("#edit-alert").removeClass("hidden")
+  
+  }
+  })
+  })
+  }
+  )
+//
+//  $("[data-name=sent-handle-email]").each(
+//  function(i,v){
+//  $(this).click(function(){
+//  var orig = $.trim($( $("[data-name=sent-handle-email]")[i]).text())
+//  var newtxt = "";
+//  if(orig === "false") {
+//  newtxt="true";
+//  } else {
+//  newtxt="false"
+//  }
+//  $( $("[data-name=sent-handle-email]")[i]).text(newtxt);
+//  var url = "/sentEmail/" + newtxt  + $( $("[data-name=sent-handle-email]")[i]).attr("data-url");
+//  $.get(url)
+//  })
+//  }
+//  )
+//  
+  
+</script>
+
+
+
+
+
+{{template "footer.html" .}}
+

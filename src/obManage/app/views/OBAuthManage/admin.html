@@ -1,0 +1,86 @@
+
+{{set . "title" "obManage"}}
+{{template "header.html" .}}
+{{template "nav.html" .}}
+
+<h1>Hello {{.Admin}}</h1>
+{{if eq .ShowWhenRoot true}}
+<table border="1" class="table-striped table">
+  <tr>
+    <td>email</td>
+    <td>pass</td>
+    <td>edit</td>
+  </tr>
+  
+  {{range .Admins}}
+  <tr>
+    <td><a href="#"  data-type="text" data-pk="1" data-name="email" data-placement="right" data-placeholder="Required" data-original-title="Enter new email" data-url="/editEmail/{{.Email}}" class="editable">{{.Email}}</a></td>
+    <td><a href="#" id="passwd" data-url="/editPass/{{.Email}}" data-type="text" data-pk="1" data-name="password" data-placement="right" data-placeholder="Required" data-original-title="Enter new password" class="editable">{{.Pass}}</a></td>
+    <td><a href="/deleteAdmin/{{.Email}}"> delete </a></td>
+  </tr>
+  
+  {{end}}
+      
+</table>
+
+
+<input  id="add-admin-name" placeholder="email"></input>
+<input  id="add-admin-pass" placeholder="password"> </input>
+<a href="javascript:addAdmin()">add admin</a>
+<div id="create-admin-alert" class="alert alert-danger hidden"></div>
+{{end}}
+
+<script>
+  $("[data-name=email]").editable({
+  type: 'text',
+  pk: 1,
+  title: 'Enter email'
+  });
+  $("[data-name=password]").editable({
+  type: 'text',
+  pk: 1,
+  title: 'Enter password'
+  });
+  
+  $("[data-name=email]").editable('option','validate', function (v) {
+  var i = 0;
+  var elems = $("[data-name=email]")
+  for(i; i<elems.length; i++) {
+                         if (v==elems[i].text) {
+                         return "dest email exists";
+                         }
+                         }
+                         });
+                         
+                         
+                         function addAdmin() {
+                         $("#add-admin-alert").addClass("hidden");
+                         if ($("#add-admin-name").val().length ==0 || $("#add-admin-pass").val().length==0) {
+                         $("#add-admin-alert").text("email and pass all required");
+                         $("#add-admin-alert").removeClass("hidden");
+                         return 
+                         }
+                         
+                         $.post("/addAdmin", {email:$("#add-admin-name").val(), mpass:$("#add-admin-pass").val()}, function(data){
+                         if (data.Msg) {
+                         $("#add-admin-alert").text(data.Msg);
+                         $("#add-admin-alert").removeClass("hidden");
+                         return;
+                         } 
+                         
+                         $("#add-admin-alert").addClass("hidden");
+                         
+                         $("table").append("<tr><td><a href='#' data-url=''" +  "data-type='text' data-name='email' data-placement='right' data-placeholder='Required' data-original-title='Enter new email' class='editable'>"+data.Info['create']+" </a></td><td>" + 
+                         "<a href='#' data-url=''" + "data-type='text' data-name='email' data-placement='right' data-placeholder='Required' data-original-title='Enter new email' class='editable'>"+data.Info['pass']+"</a></td>" + 
+                         "<td><a href='/deleteAdmin/{{.Email}}'> delete </a></td></tr>"
+                         )
+                         $("table tr :last td:first").attr("data-url","/editEmail/" +  data.Item['create']);
+                         $("table tr :last td:last").attr("data-url", "/editPass/" +  data.Item['pass']);
+                         
+                         });
+                         }
+                         
+</script>
+
+{{template "footer.html" .}}
+
