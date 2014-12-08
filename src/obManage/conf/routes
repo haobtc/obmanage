@@ -4,21 +4,31 @@
 
 module:testrunner
 
-GET     /                                       App.Index
-GET     /users                                  App.Admin
-POST    /login                                  App.Login
-GET     /customers                              App.Customers
-# POST    /customers/:page                        App.Customers   
-GET     /customers/:flags/:pages/:frompages     App.Customers   
-GET     /authcustomers                          App.AuthCustomers
-GET     /deleteAuth/:customer                   App.DeleteAuth
-GET     /deleteAdmin/:admin                     App.DeleteAdmin
-GET     /search/:email                          App.Search
-POST    /search                                 App.Search     
-post    /createAdmin                            App.CreateAdmin
-POST    /editEmail/:srcemail                    App.EditAdminEmail
-POST    /editPass/:srcemail                     App.EditAdminPass
-POST    /editAuth/:srcemail                     App.EditAuth      
+GET     /                                       OBAuthManage.Index
+GET     /users                                  OBAuthManage.Admin
+POST    /login                                  OBAuthManage.Login
+GET     /customers                              OBAuthManage.Customers
+#POST   /customers/:page                        OBAuthManage.Customers   
+GET     /customers/:flags/:pages/:frompages     OBAuthManage.Customers   
+GET     /authcustomers                          OBAuthManage.RequestCancelAuth
+GET     /deleteAuth/:customer                   OBAuthManage.DeleteAuth
+GET     /deleteAdmin/:admin                     OBAuthManage.DeleteAdmin
+GET     /search/:email                          OBAuthManage.Search
+POST    /search                                 OBAuthManage.Search     
+post    /addAdmin                               OBAuthManage.AddAdmin
+POST    /editEmail/:srcemail                    OBAuthManage.EditAdminEmail
+POST    /editPass/:srcemail                     OBAuthManage.EditAdminPass
+POST    /editAuth/:srcemail                     OBAuthManage.EditAuth      
+post    /requestResetAuth                       OBAuthManage.RequestResetAuth
+post    /verifyResetAuthCode                    OBAuthManage.VerifyResetAuthCode
+get     /sentEmail/:email/:value                OBAuthManage.SentEmail
+get     /validateUser/:email/:value             OBAuthManage.AuthValidateUser
+get     /frozenAccount/:email/:value            OBAuthManage.AuthFrozenAccount
+get     /authHandled/:email/:value              OBAuthManage.AuthHandled
+get     /authTimeout/:email/:value              OBAuthManage.AuthTimeout
+
+
+
 # Ignore favicon requests
 GET     /favicon.ico                            404
 
@@ -27,5 +37,6 @@ GET     /favicon.ico                            404
 # Map static resources from the /app/public folder to the /public path
 GET     /public/*filepath                       Static.Serve("public")
 
+*       /:                                      404
 # Catch all
-*       /:controller/:action                    :controller.:action
+#*       /:controller/:action                    :controller.:action

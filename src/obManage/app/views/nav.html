@@ -54,9 +54,8 @@
 <script>
   function search() {
   console.log($("input").val());
-//  $.post("/search",{email:$("input").val()}, function(data){
+  if ($("input").val().length > 0) {
   location.href = '/search/' + $("input").val();
-  
-//  });
+  }
   }
 </script>
