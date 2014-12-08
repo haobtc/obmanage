@@ -312,15 +312,21 @@ func (c OBAuthManage)AuthTimeout(email string, value bool) revel.Result {
 }
 
 func sendmail(to []string, sub []byte, content []byte) bool {
+
+	revel.Config.SetSection("mail")
+	user,_ := revel.Config.String("mail.user")
+	passwd,_ := revel.Config.String("mail.passwd")
+	host,_ := revel.Config.String("mail.host")
+	from,_ := revel.Config.String("mail.from")
 	auth := smtp.PlainAuth(
 		"",
-		"2891078403@qq.com",//email
-		"demonhunter521",//password
-		"smtp.qq.com",//host
+		user,//email
+		passwd,
+		host,//host
 	)
 	body := append(sub, content...)
 	println(string(body))
-	err := smtp.SendMail("smtp.qq.com:25", auth, "2891078403@qq.com", to, body)
+	err := smtp.SendMail(host+":25", auth, from, to, body)
 	if err!=nil {
 		println("send mail fails")
 		println(err.Error())
