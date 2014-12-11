@@ -31,14 +31,15 @@ type Customer struct {
 type RequestCancelAuthCs struct {
 	Id  bson.ObjectId `bson:"_id,omitempty"`
 	Email string `bson:"email"`
-	ReqTime time.Time `bson:"reqTime"`
-	EmailChecked bool `bson:"checked"`
+	ReqTime time.Time `bson:"reqtime"`
+	EmailChecked bool `bson:"emailchecked"`
 	FrozenAccount bool `bson:"frozened"`
 	Timeout   bool `bson:"timeout"`
 	Handled bool    `bson:"handled"`
-	SentEmail bool  `bson:"sentEmail"`
+	SentEmail bool  `bson:"sentemail"`
 	Code string `bson:"code"`
-
+	Lang string `bson:"lang"`
+	WaitDays int `bson:"waitdays"`
 }
 
 func AdminExists(s *mgo.Session, email string, pwd string) bool {
@@ -64,6 +65,7 @@ func AdminRoot(s *mgo.Session, email string) bool {
 	}
 	return false;
 }
+
 func Collection(s *mgo.Session) *mgo.Collection {
 	return s.DB("").C("")
 }
@@ -203,7 +205,7 @@ func EditAuth(s *mgo.Session, srcemail string, authKey string) (string ,error) {
 
 func AllResetPetitioners(s *mgo.Session) []RequestCancelAuthCs{
 	var all []RequestCancelAuthCs 
-	err := s.DB("cancel").C("cancel").Find(nil).All(&all)
+	err := s.DB("richwallet").C("reset").Find(nil).All(&all)
 	if err!=nil {
 		println(err.Error())
 	}
@@ -219,10 +221,10 @@ func AddRequestResetAuth(s *mgo.Session, email string, code string) (error, bool
  **************************************************************/
 
 	var  result RequestCancelAuthCs;
-	query := s.DB("cancel").C("cancel").Find(bson.M{"email": email})
+	query := s.DB("richwallet").C("reset").Find(bson.M{"email": email})
 	err := query.Sort("-reqTime").One(&result)
 	if err!=nil {
-		return s.DB("cancel").C("cancel").Insert(bson.M{"email":email, 
+		return s.DB("richwallet").C("reset").Insert(bson.M{"email":email, 
 			"reqTime":time.Now(), 
 			"checked": false,
 			"frozened": false,
@@ -233,32 +235,42 @@ func AddRequestResetAuth(s *mgo.Session, email string, code string) (error, bool
 	}
 	
 	if result.Timeout {
-		println("update")
-		return s.DB("cancel").C("cancel").Update(bson.M{"email":email},bson.M{"$set": bson.M{"reqTime":time.Now(), "checked": false,"frozened": false,					"handled": false,"timeout": false,"sentEmail": false, "code": code}}) , false
+		return s.DB("richwallet").C("reset").Update(bson.M{"email":email},bson.M{"$set": bson.M{"reqtime":time.Now(), "checked": false,"frozened": false,					"handled": false,"timeout": false,"sentemail": false, "code": code}}) , false
 	} else {
-		println("has requested before")
 		return errors.New("update fails"), true;
 	}
 }
 
 func SetSentEmail(s *mgo.Session, email string, value bool) error {
-	return s.DB("cancel").C("cancel").Update(bson.M{"email":email, "sentEmail":!value}, bson.M{"$set": bson.M{"sentEmail":value}})
+	return s.DB("richwallet").C("reset").Update(bson.M{"email":email, "sentemail":!value}, bson.M{"$set": bson.M{"sentemail":value}})
+}
+
+func ReqTime(s *mgo.Session, email string) time.Time {
+	var result RequestCancelAuthCs 
+	err := s.DB("richwallet").C("reset").Find(bson.M{"email":email, "timeout":false}).One(& result)
+	if err!=nil {
+		println(err.Error())
+		return time.Now()
+	} else {
+		return result.ReqTime
+	}
+
 }
 
 func SetAuthValidate(s *mgo.Session, email string, value bool) error {
-	return s.DB("cancel").C("cancel").Update(bson.M{"email":email, "checked":!value}, bson.M{"$set": bson.M{"checked":value}})
+	return s.DB("richwallet").C("reset").Update(bson.M{"email":email, "checked":!value}, bson.M{"$set": bson.M{"checked":value}})
 }
 
 func SetAuthFrozenAccount(s *mgo.Session, email string, value bool) error {
-	return s.DB("cancel").C("cancel").Update(bson.M{"email":email, "frozened":!value}, bson.M{"$set": bson.M{"frozened":value}})
+	return s.DB("richwallet").C("reset").Update(bson.M{"email":email, "frozened":!value}, bson.M{"$set": bson.M{"frozened":value}})
 }
 
 func SetAuthHandled(s *mgo.Session, email string, value bool) error {
-	return s.DB("cancel").C("cancel").Update(bson.M{"email":email, "handled":!value}, bson.M{"$set": bson.M{"handled":value}})
+	return s.DB("richwallet").C("reset").Update(bson.M{"email":email, "handled":!value}, bson.M{"$set": bson.M{"handled":value}})
 }
 
 func SetAuthTimeout(s *mgo.Session, email string, value bool) error {
-	return s.DB("cancel").C("cancel").Update(bson.M{"email":email, "timeout":!value}, bson.M{"$set": bson.M{"timeout":value}})
+	return s.DB("richwallet").C("reset").Update(bson.M{"email":email, "timeout":!value}, bson.M{"$set": bson.M{"timeout":value}})
 }
 
 func IsAuthUserExists(s *mgo.Session, email string, serverKey string) bool {
@@ -289,8 +301,7 @@ func AddVerfiedCode(s *mgo.Session, email string, serverKey string, code string)
 	}
 	
 	if  num>0 {
-		coll = s.DB("cancel").C("cancel");
-		err = s.DB("cancel").C("cancel").Update(bson.M{"email":email}, bson.M{"$set": bson.M{"code":code,"checked":false}})
+		err = s.DB("richwallet").C("reset").Update(bson.M{"email":email}, bson.M{"$set": bson.M{"code":code,"checked":false}})
 		if err!=nil {
 			println(err.Error())
 			return false
@@ -301,7 +312,7 @@ func AddVerfiedCode(s *mgo.Session, email string, serverKey string, code string)
 }
 
 func IsAuthVerified(s *mgo.Session, email string) bool {
-	var coll =  s.DB("cancel").C("cancel");
+	var coll =  s.DB("richwallet").C("reset");
 	var result  RequestCancelAuthCs;
 	err := coll.Find(bson.M{"email": email}).One(&result)
 	if  err!=nil {
@@ -313,22 +324,18 @@ func IsAuthVerified(s *mgo.Session, email string) bool {
 
 func VerifyResetAuthCode(s *mgo.Session, email string, serverKey string, code string) bool {
 	var result RequestCancelAuthCs
-	println(email)
-	println(len(email))
-	println(code)
-	query := s.DB("cancel").C("cancel").Find(bson.M{"email": email})
+	query := s.DB("richwallet").C("reset").Find(bson.M{"email": email})
 	err := query.Sort("-reqTime").One(&result)
 	if err!= nil {
 		
 		println(err.Error())
 		return false;
 	}
-	
-	println(result.Code)
+
 	if result.Code == code && result.Code!="" {
-		println("----------compare")
-		s.DB("cancel").C("cancel").Update(bson.M{"email":email}, bson.M{"$set": bson.M{ "checked": true}})
+		s.DB("richwallet").C("reset").Update(bson.M{"email":email}, bson.M{"$set": bson.M{ "checked": true}})
 		return true
 	}
 	return false;
 }
+

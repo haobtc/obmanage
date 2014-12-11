@@ -26,6 +26,7 @@ func init() {
 	revmgo.ControllerInit()
 	// ( order dependent )
 	revel.OnAppStart(InitDB)
+//	revel.OnAppStart(WatchModels)
 	// revel.OnAppStart(FillCache)
 }
 
