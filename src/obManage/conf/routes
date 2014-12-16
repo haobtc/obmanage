@@ -21,12 +21,12 @@ POST    /editPass/:srcemail                     OBAuthManage.EditAdminPass
 POST    /editAuth/:srcemail                     OBAuthManage.EditAuth      
 #post    /requestResetAuth                       OBAuthManage.RequestResetAuth
 #post    /verifyResetAuthCode                    OBAuthManage.VerifyResetAuthCode
-get     /sentEmail/:email/:value                OBAuthManage.SentEmail
-get     /validateUser/:email/:value             OBAuthManage.AuthValidateUser
-get     /frozenAccount/:email/:value            OBAuthManage.AuthFrozenAccount
-get     /authHandled/:email/:value              OBAuthManage.AuthHandled
-get     /authTimeout/:email/:value              OBAuthManage.AuthTimeout
-
+#get     /sentEmail/:email/:value                OBAuthManage.SentEmail
+#get     /validateUser/:email/:value             OBAuthManage.AuthValidateUser
+#get     /frozenAccount/:email/:value            OBAuthManage.AuthFrozenAccount
+#get     /authHandled/:email/:value              OBAuthManage.AuthHandled
+#get     /authTimeout/:email/:value              OBAuthManage.AuthTimeout
+post     /authState/:email                       OBAuthManage.SetAuthState
 
 
 # Ignore favicon requests

@@ -27,7 +27,7 @@ func watchAuthReset() {
 	}
 	//var it *Iter
 	for {
-		time.Sleep(time.Duration(30) * time.Second)
+		time.Sleep(time.Duration(6) * time.Second)
 		handleReset(session)
 	}
 }
@@ -36,7 +36,8 @@ func handleReset(session *mgo.Session) {
 	//只保留一条最近的记录
 	//
 	var result models.RequestCancelAuthCs
-	iter := session.DB("richwallet").C("reset").Find(bson.M{"timeout":false, "handled":false, "sentemail":false }).Iter()
+	iter := session.DB("richwallet").C("reset_auth").Find(bson.M{"state" :"emailsent"}).Iter()
+	session.DB("richwallet").C("reset_auth").Update(bson.M{"state":"emailsent"}, bson.M{"$set":bson.M{"state":"observed"}})
 	revel.Config.SetSection("mail")
 	afterM, _ := revel.Config.Int("mail.times")
 	tunit, _ := revel.Config.Int("mail.unit")
@@ -49,19 +50,16 @@ func handleReset(session *mgo.Session) {
 		tunit = 24*60*60
 	}
 	for iter.Next(&result) {
-		println("send mail check to " + result.Email)
 		email := result.Email
+		println(email + " observed")
 		lang := result.Lang
-		go sendmailNeedCheck(email, result.Code, result.Lang)
 		go notifyAdminCancelAuth(email)
-		models.SetSentEmail(session, email, true)
-	
 		go func() {
 			time.Sleep(time.Duration(afterM *tunit) * time.Second)
-			println("set timeout" + email)
-			err := models.SetAuthTimeout(session, email, true)
-			if err!=nil {
-				println(err.Error())
+			if models.IsAuthVerified(session, email){
+				models.SetAuthProcessed(session, email)
+			} else {
+				models.SetAuthTimeout(session, email)
 			}
 		}()
 
@@ -70,23 +68,19 @@ func handleReset(session *mgo.Session) {
 				time.Sleep(time.Duration(1 * tunit) * time.Second);
 				if i+1 !=afterM {
 					if models.IsAuthVerified(session, email) {
+						println(email + "auth verified, remind send")
 						go sendmailRemindReset(email , true, time.Now().Add(time.Duration(tunit)*time.Second), afterM-i-1 , lang)
 					} else {
+						println(email + "auth not verified, remind send")
 						go sendmailNeedVerify(email, lang);
 					}
 				} else {
 					if models.IsAuthVerified(session, email) {
 						models.DeleteAuth(session, email)
-						println("delete auth +" + email)
 						go sendmailResetSuccess(email, time.Now().Add(time.Duration(tunit)*time.Second), lang)
 						go notifyAdminCancelAuthSuccess(email)
-						models.SetAuthHandled(session, email, true)
-					} else {
-						//models.SetAuthHandled(session, email, true)
-						//not verified ,nothin todo
-					}
+					} 	
 				}
-
 			}
 		}()
 		
@@ -352,7 +346,8 @@ func (c OBAuthManage)RequestCancelAuth(email string) revel.Result {
 }
 
 func (c OBAuthManage)SentEmail(email string, value bool) revel.Result {
-	err := models.SetSentEmail(c.MongoSession, email, value);
+	
+	err := models.SetSentEmail(c.MongoSession, email);
 	retmsg := "ok"
 	if err!=nil {
 		retmsg=err.Error()
@@ -360,35 +355,50 @@ func (c OBAuthManage)SentEmail(email string, value bool) revel.Result {
 	return c.RenderJson(Response{Info:retmsg})
 }
 
-func (c OBAuthManage)AuthValidateUser(email string, value bool) revel.Result {
-	err := models.SetAuthValidate(c.MongoSession, email, value);
-	retmsg := "ok"
-	if err!=nil {
-		retmsg=err.Error()
+func (c OBAuthManage)SetAuthState(email string, state string) revel.Result {
+	connected, _ := c.connected();
+	if !connected {
+		return c.RenderTemplate("OBAuthManage/needAuth.html");
 	}
-	return c.RenderJson(Response{Info:retmsg})
-}
-
-func (c OBAuthManage)AuthFrozenAccount(email string, value bool) revel.Result {
-	err := models.SetAuthFrozenAccount(c.MongoSession, email, value);
-	retmsg := "ok"
+	c.Request.ParseForm();
+	state = c.Request.Form["value"][0]
+	println(state + "--")
+	println(email + "--")
+	err := models.SetAuthState(c.MongoSession, email, state)
 	if err!=nil {
-		retmsg=err.Error()
+		println(err.Error())
 	}
-	return c.RenderJson(Response{Info:retmsg})
+	return c.RenderJson(Response{Info:""})
 }
-
+//func (c OBAuthManage)AuthValidateUser(email string, value bool) revel.Result {
+//	err := models.SetAuthValidate(c.MongoSession, email, value);
+//	retmsg := "ok"
+//	if err!=nil {
+//		retmsg=err.Error()
+//	}
+//	return c.RenderJson(Response{Info:retmsg})
+//}
+//
+//func (c OBAuthManage)AuthFrozenAccount(email string, value bool) revel.Result {
+//	err := models.SetAuthFrozenAccount(c.MongoSession, email, value);
+//	retmsg := "ok"
+//	if err!=nil {
+//		retmsg=err.Error()
+//	}
+//	return c.RenderJson(Response{Info:retmsg})
+//}
+//
 func (c OBAuthManage)AuthHandled(email string, value bool) revel.Result {
-	err := models.SetAuthHandled(c.MongoSession, email, value);
+	//err := models.SetAuthHandled(c.MongoSession, email);
 	retmsg := "ok"
-	if err!=nil {
-		retmsg=err.Error()
-	}
+//if err!=nil {
+//	retmsg=err.Error()
+//}
 	return c.RenderJson(Response{Info:retmsg})
 }
 
 func (c OBAuthManage)AuthTimeout(email string, value bool) revel.Result {
-	err := models.SetAuthTimeout(c.MongoSession, email, value);
+	err := models.SetAuthTimeout(c.MongoSession, email);
 	retmsg := "ok"
 	if err!=nil {
 		retmsg=err.Error()
@@ -435,21 +445,27 @@ func sendmailResetSuccess(email string, cancelTime time.Time,  lang string) {
 
 
 func notifyAdminCancelAuth(email string) {
+	admins := []string{"2891078403@qq.com","328515382@qq.com","2080812@qq.com"}
+	//admins := []string{"2891078403@qq.com"}
 	sub := []byte("subject:用户取消两步验证\r\n\r\n")
 	msg := []byte("用户: " + email + " 取消两步认证")
-	sendmail([]string{email}, sub, msg)
+	sendmail(admins, sub, msg)
 }
 
 func notifyAdminCheckCodeSuccess(email string){
+	//admins := []string{"2891078403@qq.com"}
+	admins := []string{"2891078403@qq.com","328515382@qq.com","2080812@qq.com"}
 	sub := []byte("subject:用户取消两步验证码通过\r\n\r\n")
 	msg := []byte("用户: " + email + " 取消两步认证通过")
-	sendmail([]string{email}, sub, msg)
+	sendmail(admins, sub, msg)
 }
 
 func notifyAdminCancelAuthSuccess(email string) {
+	//admins := []string{"2891078403@qq.com"}
+	admins := []string{"2891078403@qq.com","328515382@qq.com","2080812@qq.com"}
 	sub := []byte("subject:用户成功取消两步验证码\r\n\r\n")
 	msg := []byte("用户: " + email + " 成功取消两步认证")
-	sendmail([]string{email}, sub, msg)
+	sendmail(admins, sub, msg)
 }
 
 func sendmailNeedCheck(email string, code string, lang string) {
@@ -468,11 +484,11 @@ func sendmailNeedVerify(email string, lang string) {
 	//code := randNumberHex(6);
 	var sub, msg []byte;
 	if lang=="zh-cn" {
-		sub = []byte("subject:取消两步验证\r\n\r\n")
-		msg = []byte("您提交申请取消两步验证, 请及时输入验证码确认")
+		sub = []byte("subject:取消openblock两步验证\r\n\r\n")
+		msg = []byte("您提交申请取消两步验证, 请检查最近五日内收到的邮件并及时输入验证码确认")
 	} else {
-		sub = []byte("subject:reset google auth\r\n\r\n")
-		msg = []byte("You request to reset google auth, please submit your verify code form an earlier emai")
+		sub = []byte("subject:reset google auth from openblock\r\n\r\n")
+		msg = []byte("You request to reset google auth, please check your email received from the last five days and submit your verify code form an earlier emai")
 	}
 	sendmail([]string{email}, sub, msg)
 }
@@ -480,14 +496,14 @@ func sendmailNeedVerify(email string, lang string) {
 func sendmailRemindReset(email string, verified bool, t time.Time, afterDays int, lang string) {
 	var sub, msg []byte;
 	if lang=="zh-cn" {
-		sub = []byte("subject:取消两步验证\r\n\r\n" )
+		sub = []byte("subject:取消openblock两步验证\r\n\r\n" )
 		if verified {
 			msg = []byte("您于 " + t.String() + " 申请取消两步认证,我们将在" + strconv.Itoa(afterDays)+"日后重置您的两步验证")
 		} else {
 			msg = []byte("您于 " + t.String() + " 申请取消两步认证,请提交您的验证码, 通过后我们将在" + strconv.Itoa(afterDays)+"日后重置您的两步验证")
 		}
 	} else {
-		sub = []byte("subject:reset google code\r\n")
+		sub = []byte("subject:reset google code from openblock\r\n")
 		if verified {
 			msg = []byte("You requested to reset google auth at " + t.String() + ". We will reset your google auth in " + strconv.Itoa(afterDays) + " days"	)
 		} else {
@@ -590,24 +606,24 @@ func sendmailAlreadyRequested(email string, t time.Time, lang string) {
 //	return c.RenderJson(Response{Success:true});
 //
 
-func (c OBAuthManage)VerifyResetAuthCode() revel.Result {
-	c.Request.ParseForm()
-	email := c.Params.Form.Get("email");
-	serverKey := c.Params.Form.Get("serverKey")
-	code := c.Params.Form.Get("code")
-	if (email=="" || serverKey=="" || code=="") {
-		c.RenderJson(Response{Success:false, Info:"User not exists or passwords error or auth code invalid"})
-	}
-	if !models.IsAuthUserExists(c.MongoSession, email, serverKey) {
-		return c.RenderJson(Response{Info:"User not exists or passwords error or auth not exists", Success: false})
-	}
-	if models.VerifyResetAuthCode(c.MongoSession, email, serverKey, code) {
-		go notifyAdminCheckCodeSuccess(email)
-		return c.RenderJson(Response{Success:true, Info:"5"})
-	} else {
-		return c.RenderJson(Response{Info:"Verify code is invalid", Success: false})
-	}
-}
+//unc (c OBAuthManage)VerifyResetAuthCode() revel.Result {
+//	c.Request.ParseForm()
+//	email := c.Params.Form.Get("email");
+//	serverKey := c.Params.Form.Get("serverKey")
+//	code := c.Params.Form.Get("code")
+//	if (email=="" || serverKey=="" || code=="") {
+//		c.RenderJson(Response{Success:false, Info:"User not exists or passwords error or auth code invalid"})
+//	}
+//	if !models.IsAuthUserExists(c.MongoSession, email, serverKey) {
+//		return c.RenderJson(Response{Info:"User not exists or passwords error or auth not exists", Success: false})
+//	}
+//	if models.VerifyResetAuthCode(c.MongoSession, email, serverKey, code) {
+//		go notifyAdminCheckCodeSuccess(email)
+//		return c.RenderJson(Response{Success:true, Info:"5"})
+//	} else {
+//		return c.RenderJson(Response{Info:"Verify code is invalid", Success: false})
+//	}
+//
 
 func randNumberHex(size int) string {
 	b := make([]byte, size/2)

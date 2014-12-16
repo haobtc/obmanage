@@ -32,11 +32,7 @@ type RequestCancelAuthCs struct {
 	Id  bson.ObjectId `bson:"_id,omitempty"`
 	Email string `bson:"email"`
 	ReqTime time.Time `bson:"reqtime"`
-	EmailChecked bool `bson:"emailchecked"`
-	FrozenAccount bool `bson:"frozened"`
-	Timeout   bool `bson:"timeout"`
-	Handled bool    `bson:"handled"`
-	SentEmail bool  `bson:"sentemail"`
+	State  string  `bson:"state"`
 	Code string `bson:"code"`
 	Lang string `bson:"lang"`
 	WaitDays int `bson:"waitdays"`
@@ -112,6 +108,7 @@ func DeleteAuth(s *mgo.Session, email string) ([]Customer){
 	if err != nil {
 		panic(err)
 	}
+	println("delete auth "+ email)
 	var customer []Customer
 	s.DB("richwallet").C("wallet").Find(bson.M{"authKey":bson.M{"$exists":true}}).All(&customer)
 	return customer
@@ -205,7 +202,7 @@ func EditAuth(s *mgo.Session, srcemail string, authKey string) (string ,error) {
 
 func AllResetPetitioners(s *mgo.Session) []RequestCancelAuthCs{
 	var all []RequestCancelAuthCs 
-	err := s.DB("richwallet").C("reset").Find(nil).All(&all)
+	err := s.DB("richwallet").C("reset_auth").Find(nil).All(&all)
 	if err!=nil {
 		println(err.Error())
 	}
@@ -221,33 +218,29 @@ func AddRequestResetAuth(s *mgo.Session, email string, code string) (error, bool
  **************************************************************/
 
 	var  result RequestCancelAuthCs;
-	query := s.DB("richwallet").C("reset").Find(bson.M{"email": email})
+	query := s.DB("richwallet").C("reset_auth").Find(bson.M{"email": email})
 	err := query.Sort("-reqTime").One(&result)
 	if err!=nil {
-		return s.DB("richwallet").C("reset").Insert(bson.M{"email":email, 
+		return s.DB("richwallet").C("reset_auth").Insert(bson.M{"email":email, 
 			"reqTime":time.Now(), 
-			"checked": false,
-			"frozened": false,
-			"handled": false,
-			"timeout": false,
-			"sentEmail": false,
+			"state": "emailsent",
 			"code": code}), false
 	}
 	
-	if result.Timeout {
-		return s.DB("richwallet").C("reset").Update(bson.M{"email":email},bson.M{"$set": bson.M{"reqtime":time.Now(), "checked": false,"frozened": false,					"handled": false,"timeout": false,"sentemail": false, "code": code}}) , false
-	} else {
+	if result.State == "expired" || result.State== "processed" {
+		return s.DB("richwallet").C("reset_auth").Update(bson.M{"email":email},
+			bson.M{"$set": bson.M{"reqtime":time.Now(), "code": code, "state": "emailsent"}}) , false} else {
 		return errors.New("update fails"), true;
 	}
 }
 
-func SetSentEmail(s *mgo.Session, email string, value bool) error {
-	return s.DB("richwallet").C("reset").Update(bson.M{"email":email, "sentemail":!value}, bson.M{"$set": bson.M{"sentemail":value}})
+func SetSentEmail(s *mgo.Session, email string) error {
+	return s.DB("richwallet").C("reset_auth").Update(bson.M{"email":email}, bson.M{"$set": bson.M{"state":"emailsent"}})
 }
 
 func ReqTime(s *mgo.Session, email string) time.Time {
 	var result RequestCancelAuthCs 
-	err := s.DB("richwallet").C("reset").Find(bson.M{"email":email, "timeout":false}).One(& result)
+	err := s.DB("richwallet").C("reset_auth").Find(bson.M{"email":email}).One(& result)
 	if err!=nil {
 		println(err.Error())
 		return time.Now()
@@ -257,20 +250,26 @@ func ReqTime(s *mgo.Session, email string) time.Time {
 
 }
 
-func SetAuthValidate(s *mgo.Session, email string, value bool) error {
-	return s.DB("richwallet").C("reset").Update(bson.M{"email":email, "checked":!value}, bson.M{"$set": bson.M{"checked":value}})
+func SetAuthState(s *mgo.Session, email string, state string) error {
+	return s.DB("richwallet").C("reset_auth").Update(bson.M{"email":email}, bson.M{"$set": bson.M{"state": state}})
 }
 
-func SetAuthFrozenAccount(s *mgo.Session, email string, value bool) error {
-	return s.DB("richwallet").C("reset").Update(bson.M{"email":email, "frozened":!value}, bson.M{"$set": bson.M{"frozened":value}})
+func SetAuthValidate(s *mgo.Session, email string) error {
+	return s.DB("richwallet").C("reset_auth").Update(bson.M{"email":email}, bson.M{"$set": bson.M{"state":"emailchecked"}})
 }
 
-func SetAuthHandled(s *mgo.Session, email string, value bool) error {
-	return s.DB("richwallet").C("reset").Update(bson.M{"email":email, "handled":!value}, bson.M{"$set": bson.M{"handled":value}})
-}
+//unc SetAuthFrozenAccount(s *mgo.Session, email string, value bool) error {
+//	return s.DB("richwallet").C("reset_auth").Update(bson.M{"email":email }, bson.M{"$set": bson.M{"state":value}})
+//
 
-func SetAuthTimeout(s *mgo.Session, email string, value bool) error {
-	return s.DB("richwallet").C("reset").Update(bson.M{"email":email, "timeout":!value}, bson.M{"$set": bson.M{"timeout":value}})
+func SetAuthProcessed(s *mgo.Session, email string) error {
+	println("set auth processed:" + email)
+	return s.DB("richwallet").C("reset_auth").Update(bson.M{"email":email, "state": "emailchecked"}, bson.M{"$set": bson.M{"email":email, "state":"processed"}})
+}
+//
+func SetAuthTimeout(s *mgo.Session, email string) error {
+	println("set auth timeout:" + email)
+	return s.DB("richwallet").C("reset_auth").Update(bson.M{"email":email}, bson.M{"$set": bson.M{"state": "expired"}})
 }
 
 func IsAuthUserExists(s *mgo.Session, email string, serverKey string) bool {
@@ -301,7 +300,7 @@ func AddVerfiedCode(s *mgo.Session, email string, serverKey string, code string)
 	}
 	
 	if  num>0 {
-		err = s.DB("richwallet").C("reset").Update(bson.M{"email":email}, bson.M{"$set": bson.M{"code":code,"checked":false}})
+		err = s.DB("richwallet").C("reset_auth").Update(bson.M{"email":email}, bson.M{"$set": bson.M{"code":code,"state":"emailsent"}})
 		if err!=nil {
 			println(err.Error())
 			return false
@@ -312,30 +311,30 @@ func AddVerfiedCode(s *mgo.Session, email string, serverKey string, code string)
 }
 
 func IsAuthVerified(s *mgo.Session, email string) bool {
-	var coll =  s.DB("richwallet").C("reset");
+	var coll =  s.DB("richwallet").C("reset_auth");
 	var result  RequestCancelAuthCs;
 	err := coll.Find(bson.M{"email": email}).One(&result)
 	if  err!=nil {
 		println(err.Error())
 		return false
 	} 
-	return result.EmailChecked
+	return result.State == "emailchecked" || result.State=="processed"
 }
 
-func VerifyResetAuthCode(s *mgo.Session, email string, serverKey string, code string) bool {
-	var result RequestCancelAuthCs
-	query := s.DB("richwallet").C("reset").Find(bson.M{"email": email})
-	err := query.Sort("-reqTime").One(&result)
-	if err!= nil {
-		
-		println(err.Error())
-		return false;
-	}
-
-	if result.Code == code && result.Code!="" {
-		s.DB("richwallet").C("reset").Update(bson.M{"email":email}, bson.M{"$set": bson.M{ "checked": true}})
-		return true
-	}
-	return false;
-}
+//unc VerifyResetAuthCode(s *mgo.Session, email string, serverKey string, code string) bool {
+//	var result RequestCancelAuthCs
+//	query := s.DB("richwallet").C("reset_auth").Find(bson.M{"email": email})
+//	err := query.Sort("-reqTime").One(&result)
+//	if err!= nil {
+//		
+//		println(err.Error())
+//		return false;
+//	}
+//
+//	if result.Code == code && result.Code!="" {
+//		s.DB("richwallet").C("reset_auth").Update(bson.M{"email":email}, bson.M{"$set": bson.M{ "state": "emailchecked"}})
+//		return true
+//	}
+//	return false;
+//
 
